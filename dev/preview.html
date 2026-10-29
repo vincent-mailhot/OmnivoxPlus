@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- Aperçu local de l'interface avec des données fictives (non utilisé par l'extension).
+     Lancer : python -m http.server 8765 depuis la racine du projet, puis ouvrir /dev/preview.html -->
+<html lang="fr-CA">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Omnivox+ — aperçu</title>
+  <link rel="stylesheet" href="../app.css">
+  <script type="importmap">
+    {
+      "imports": {
+        "/api/accueil.js": "/dev/mock/accueil.js",
+        "/api/lea.js": "/dev/mock/lea.js",
+        "/api/mio.js": "/dev/mock/mio.js",
+        "/api/cache.js": "/dev/mock/cache.js"
+      }
+    }
+  </script>
+  <script>
+    window.chrome = { tabs: { create: ({ url }) => window.open(url, '_blank') } };
+  </script>
+  <script type="module" src="../app.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+</html>

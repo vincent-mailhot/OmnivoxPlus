@@ -1,0 +1,10 @@
+* text=auto eol=lf
+*.jpg binary
+*.png binary
+
+# Exclus du .zip des releases (git archive) : seul le code de l'extension est livré.
+dev/ export-ignore
+docs/ export-ignore
+README.md export-ignore
+.gitattributes export-ignore
+.gitignore export-ignore
