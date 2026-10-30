@@ -6,7 +6,7 @@ export const MIO_URL = '#mio';
 const day = offset => {
   const d = new Date();
   d.setDate(d.getDate() - offset);
-  return d.toISOString().slice(0, 10);
+  return d.toLocaleDateString('en-CA'); // AAAA-MM-JJ en heure locale (comme Omnivox)
 };
 
 const MESSAGES = [

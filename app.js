@@ -23,6 +23,9 @@ const NAV = [
   { page: 'agenda', label: 'Agenda', icon: 'evenements' },
 ];
 
+// Résolu depuis ce fichier : fonctionne dans l'extension comme dans l'aperçu local (dev/).
+const LOGO = new URL('./icons/logo.svg', import.meta.url).href;
+
 const TITLES = { '': 'Accueil', cours: 'Mes cours', notes: 'Mes notes', mio: 'Messagerie', agenda: 'Agenda' };
 
 const state = {
@@ -38,9 +41,32 @@ const state = {
   docs: new Map(),      // clé du cours -> { status: 'loading' | 'ok' | 'error', data, error }
   openDocs: new Set(),  // clés des cours dont la liste de documents est dépliée
   dl: new Map(),        // href du document -> 'loading' | 'done' | 'error'
+  access: true,         // accès aux domaines Omnivox (Firefox permet de le refuser ou de le retirer)
 };
 
 const root = document.getElementById('app');
+
+// ---------- Permissions ----------
+
+const ORIGINS = ['https://cegepmontpetit.omnivox.ca/*', 'https://cegepmontpetit-lea.omnivox.ca/*'];
+
+async function checkAccess() {
+  try {
+    state.access = await chrome.permissions.contains({ origins: ORIGINS });
+  } catch {
+    state.access = true; // API absente (aperçu local) : on suppose l'accès accordé
+  }
+  return state.access;
+}
+
+// Firefox exige que la demande parte directement du clic : aucun await avant permissions.request().
+function requestAccess() {
+  chrome.permissions.request({ origins: ORIGINS }).then(granted => {
+    state.access = granted;
+    render();
+    if (granted) refreshAll();
+  });
+}
 
 // ---------- Données ----------
 
@@ -67,9 +93,11 @@ function refresh(key) {
   return inflight[key];
 }
 
-const refreshAll = () => Promise.all(Object.keys(SOURCES)
-  .filter(k => !SOURCES[k].lazy || state[k] != null || route().page === k)
-  .map(refresh));
+const refreshAll = () => (state.access
+  ? Promise.all(Object.keys(SOURCES)
+    .filter(k => !SOURCES[k].lazy || state[k] != null || route().page === k)
+    .map(refresh))
+  : Promise.resolve());
 
 // Les liens de notes viennent de la liste des cours ; s'ils ont expiré, on la recharge une fois.
 async function loadNotes() {
@@ -289,7 +317,7 @@ function view(page, arg) {
 function sidebar(page) {
   const user = state.accueil?.utilisateur;
   return h('nav', { class: 'sidebar', 'aria-label': 'Navigation principale' },
-    h('a', { class: 'brand', href: '#/' }, h('span', { class: 'brand-mark' }, 'O'), h('span', null, 'Omnivox', h('em', null, '+'))),
+    h('a', { class: 'brand', href: '#/' }, h('img', { class: 'brand-logo', src: LOGO, alt: '' }), h('span', null, 'Omnivox', h('em', null, '+'))),
     h('ul', { class: 'nav' }, NAV.map(n => {
       const active = n.page === page;
       const badge = n.badge?.();
@@ -331,6 +359,13 @@ function topbar(page) {
 }
 
 function banner() {
+  if (!state.access) {
+    return h('div', { class: 'banner warn', role: 'status' },
+      h('div', null,
+        h('strong', null, 'Accès à Omnivox requis'),
+        h('p', null, 'Omnivox+ a besoin de ta permission pour lire les pages d’Omnivox et de Léa. Aucune autre donnée n’est consultée.')),
+      h('button', { class: 'btn primary', onclick: requestAccess }, 'Autoriser l’accès'));
+  }
   const errs = Object.entries(state.errors);
   if (!errs.length) return null;
   const labels = errs.map(([k]) => SOURCES[k].label).join(', ');
@@ -728,16 +763,24 @@ async function init() {
     }
   }
   if (location.hash === '#/actualites') location.hash = '#/';
+  await checkAccess();
   render();
   refreshAll();
 }
 
 window.addEventListener('hashchange', () => {
-  if (route().page === 'notes' && state.notes == null && !inflight.notes) refresh('notes');
+  if (state.access && route().page === 'notes' && state.notes == null && !inflight.notes) refresh('notes');
   render();
 });
-// Retour sur l'onglet après s'être connecté dans Omnivox : on réessaie ce qui a échoué.
-window.addEventListener('focus', () => {
+// Retour sur l'onglet (connexion à Omnivox, permission accordée ailleurs) : on réessaie ce qui a échoué.
+window.addEventListener('focus', async () => {
+  if (!state.access) {
+    if (await checkAccess()) {
+      render();
+      refreshAll();
+    }
+    return;
+  }
   Object.keys(state.errors).forEach(refresh);
 });
 setInterval(() => {
